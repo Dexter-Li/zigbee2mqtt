@@ -94,7 +94,10 @@ async function start() {
 
     const Controller = require('./dist/controller');
     controller = new Controller(restart, exit);
-    await controller.start();
+    // MODIFED_BY_DEXTER_LI_START
+    //await controller.start();
+    controller.start();
+    // MODIFED_BY_DEXTER_LI_END
 }
 
 async function stop(reason=null) {
@@ -114,4 +117,29 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     process.on('SIGINT', handleQuit);
     process.on('SIGTERM', handleQuit);
     start();
+    // MODIFED_BY_DEXTER_LI_START
+    const express = require('express')
+
+    const app = express()
+    app.use(express.json())
+
+    app.get('api/z2m/mqtt/uri', test)
+    app.put('api/z2m/mqtt/uri', test)
+    app.put('/api/z2m/mqtt/credential', test)
+    app.get('/api/z2m/mqtt/credential', test)
+    app.get('api/z2m/zigbee/devices', test)
+    app.delete('/api/z2m/zigbee/devices/{id}', test)
+    app.post('api/z2m/zigbee/permitJoin', test)
+    app.get('/api/z2m/zigbee/blacklist', test)
+    app.put('/api/z2m/zigbee/blacklist/{id}', test)
+    app.delete('/api/z2m/zigbee/blacklist/{id}', test)
+
+    function test(req, res) {
+        return res.json({
+            error: 'OK'
+        })
+    }
+
+    app.listen(9601, '127.0.0.1');
+    // MODIFED_BY_DEXTER_LI_END
 }

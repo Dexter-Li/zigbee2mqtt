@@ -76,7 +76,9 @@ export default class MQTT {
                 resolve();
             });
 
-            this.client.on('error', (err) => reject(err));
+            // MODIFED_BY_DEXTER_LI_START
+            //this.client.on('error', (err) => reject(err));
+            // MODIFED_BY_DEXTER_LI_END
             this.client.on('message', this.onMessage);
         });
     }
