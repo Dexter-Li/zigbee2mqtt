@@ -119,22 +119,147 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     start();
     // MODIFED_BY_DEXTER_LI_START
     const express = require('express')
+    const settings = require('./dist/util/settings');
 
     const app = express()
     app.use(express.json())
 
-    app.get('api/z2m/mqtt/uri', test)
-    app.put('api/z2m/mqtt/uri', test)
-    app.put('/api/z2m/mqtt/credential', test)
-    app.get('/api/z2m/mqtt/credential', test)
-    app.get('api/z2m/zigbee/devices', test)
-    app.delete('/api/z2m/zigbee/devices/{id}', test)
-    app.post('api/z2m/zigbee/permitJoin', test)
-    app.get('/api/z2m/zigbee/blacklist', test)
-    app.put('/api/z2m/zigbee/blacklist/{id}', test)
-    app.delete('/api/z2m/zigbee/blacklist/{id}', test)
+    app.get('/api/z2m/mqtt/uri', getMqttServerURI)
+    app.put('/api/z2m/mqtt/uri', setMqttURI)
+    app.put('/api/z2m/mqtt/credential', setMqttCredential)
+    app.get('/api/z2m/mqtt/credential/userName', getMqttUserName)
+    app.get('/api/z2m/zigbee/devices', getDevices)
+    app.delete('/api/z2m/zigbee/devices/:id', deleteDevice)
+    app.get('/api/z2m/zigbee/permitJoin', getPermitJoin)
+    app.post('/api/z2m/zigbee/permitJoin', changePermitJoin)
+    app.get('/api/z2m/zigbee/blocklist', getBlockList)
+    app.put('/api/z2m/zigbee/blocklist/:id', addBlockList)
+    app.delete('/api/z2m/zigbee/blocklist/:id', overrideBlockList)
 
     function test(req, res) {
+        return res.json({
+            error: 'OK'
+        })
+    }
+
+    function getMqttServerURI(req, res) {
+        return res.json({
+            error: 'OK',
+            uri: settings.get().mqtt.server ? settings.get().mqtt.server : ''
+        })
+    }
+
+    async function setMqttURI(req, res) {
+        await controller.mqtt.disconnect()
+        settings.set('mqtt.server', req.body.uri)
+        controller.mqtt.connect()
+        return res.json({
+            error: 'OK'
+        })
+    }
+
+    async function setMqttCredential(req, res) {
+        await controller.mqtt.disconnect()
+        settings.set('mqtt.user', req.body.userName)
+        settings.set('mqtt.password', req.body.password)
+        controller.mqtt.connect()
+        return res.json({
+            error: 'OK'
+        })
+    }
+
+    function getMqttUserName(req, res) {
+        return res.json({
+            error: 'OK',
+            userName: settings.get().mqtt.user ? settings.get().mqtt.user : ''
+        })
+    }
+
+    function getDevices(req, res) {
+        return res.json({
+            error: 'OK',
+            devices: controller.zigbee.devices(false)
+        })
+    }
+
+    async function deleteDevice(req, res) {
+        try {
+            if (controller.mqtt.isConnected()) {
+                await controller.extentions[0].deviceRemove({id: req.params.id})
+            } else {
+                const device = this.zigbee.resolveEntity(req.params.id);
+                if (!device || device.constructor.name.toLowerCase() !== 'device') {
+                    throw new Error(`Device '${req.params.id}' does not exist`);
+                }
+                await device.zh.removeFromNetwork()
+                settings.removeDevice(device.ID)
+                controller.state.remove(device.ID)
+                const id = device.ID
+                const name = device.name
+                controller.eventBus.emitDeviceRemoved({id, name});
+            }
+        } catch(e) {
+            res.setStatus(404)
+            return res.json({
+                error: 'OK',
+                message: `Device '${req.params.id}' does not exist`
+            })
+        }
+        
+        return res.json({
+            error: 'OK',
+        })
+    }
+
+    async function getPermitJoin(req, res) {
+        return res.json({
+            error: 'OK',
+            permitJoin: controller.zigbee.getPermitJoin()
+        })
+    }
+
+    async function changePermitJoin(req, res) {
+        await controller.zigbee.permitJoin(req.body.permitJoin)
+        return res.json({
+            error: 'OK',
+            permitJoin: controller.zigbee.getPermitJoin()
+        })
+    }
+
+    function getBlockList(req, res) {
+        return res.json({
+            error: 'OK',
+            blocklist: settings.get().blocklist ? settings.get().blocklist : []
+        })
+    }
+
+    async function addBlockList(req, res) {
+        settings.blockDevice(req.params.id)
+        try {
+            if (controller.mqtt.isConnected()) {
+                await controller.extentions[0].deviceRemove({id: req.params.id})
+            } else {
+                const device = this.zigbee.resolveEntity(req.params.id);
+                if (!device || device.constructor.name.toLowerCase() !== 'device') {
+                    throw new Error(`Device '${req.params.id}' does not exist`);
+                }
+                await device.zh.removeFromNetwork()
+                settings.removeDevice(device.ID)
+                controller.state.remove(device.ID)
+                const id = device.ID
+                const name = device.name
+                controller.eventBus.emitDeviceRemoved({id, name});
+            }
+        } catch(e) {
+        }
+        
+        return res.json({
+            error: 'OK',
+        })
+    }
+
+    function overrideBlockList(req, res) {
+        settings.set('blocklist', req.body.blocklist)
         return res.json({
             error: 'OK'
         })
