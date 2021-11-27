@@ -91,6 +91,15 @@ export default class EventBus {
         this.on('deviceMessage', callback, key);
     }
 
+    // MODIFED_BY_DEXTER_LI_START
+    public emitMQTTConnected(): void {
+        this.emitter.emit('mqttConnected');
+    }
+    public onMQTTConnected(key: ListenerKey, callback: () => void): void {
+        this.on('mqttConnected', callback, key);
+    }
+    // MODIFED_BY_DEXTER_LI_END
+
     public emitMQTTMessage(data: eventdata.MQTTMessage): void {
         this.emitter.emit('mqttMessage', data);
     }

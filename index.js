@@ -134,13 +134,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.post('/api/z2m/zigbee/permitJoin', changePermitJoin)
     app.get('/api/z2m/zigbee/blocklist', getBlockList)
     app.put('/api/z2m/zigbee/blocklist/:id', addBlockList)
-    app.delete('/api/z2m/zigbee/blocklist/:id', overrideBlockList)
-
-    function test(req, res) {
-        return res.json({
-            error: 'OK'
-        })
-    }
+    app.delete('/api/z2m/zigbee/blocklist/:id', removeBlockList)
 
     function getMqttServerURI(req, res) {
         return res.json({
@@ -151,7 +145,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     async function setMqttURI(req, res) {
         await controller.mqtt.disconnect()
-        settings.set('mqtt.server', req.body.uri)
+        settings.set(['mqtt', 'server'], req.body.uri)
         controller.mqtt.connect()
         return res.json({
             error: 'OK'
@@ -160,8 +154,8 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     async function setMqttCredential(req, res) {
         await controller.mqtt.disconnect()
-        settings.set('mqtt.user', req.body.userName)
-        settings.set('mqtt.password', req.body.password)
+        settings.set(['mqtt', 'user'], req.body.userName)
+        settings.set(['mqtt', 'password'], req.body.password)
         controller.mqtt.connect()
         return res.json({
             error: 'OK'
@@ -199,10 +193,14 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
                 controller.eventBus.emitDeviceRemoved({id, name});
             }
         } catch(e) {
-            res.setStatus(404)
+            if (e.message.endsWith('does not exist')){
+                res.setStatus(404)
+            } else {
+                res.setStatus(500)
+            }
             return res.json({
                 error: 'OK',
-                message: `Device '${req.params.id}' does not exist`
+                message: e.message
             })
         }
         
@@ -241,7 +239,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
             } else {
                 const device = this.zigbee.resolveEntity(req.params.id);
                 if (!device || device.constructor.name.toLowerCase() !== 'device') {
-                    throw new Error(`Device '${req.params.id}' does not exist`);
+                    throw new Error()
                 }
                 await device.zh.removeFromNetwork()
                 settings.removeDevice(device.ID)
@@ -258,8 +256,19 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         })
     }
 
-    function overrideBlockList(req, res) {
-        settings.set('blocklist', req.body.blocklist)
+    function removeBlockList(req, res) {
+        if (settings.get().blocklist !== undefined) {
+            var blockList = settings.get().blocklist
+            while (true) {
+                const index = blockList.indexOf(req.body.id)
+                if (index !== -1) {
+                    blockList.splice(index, 1)
+                } else {
+                    break
+                }
+            }
+            settings.set(['blocklist'], blockList)
+        }
         return res.json({
             error: 'OK'
         })

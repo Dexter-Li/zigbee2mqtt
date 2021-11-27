@@ -92,6 +92,10 @@ export default class MQTT {
             }
         }, utils.seconds(10));
 
+        // MODIFED_BY_DEXTER_LI_START
+        this.eventBus.emitMQTTConnected();
+        // MODIFED_BY_DEXTER_LI_END
+
         logger.info('Connected to MQTT server');
         this.subscribe(`${settings.get().mqtt.base_topic}/#`);
         await this.publish('bridge/state', 'online', {retain: true, qos: 0});
