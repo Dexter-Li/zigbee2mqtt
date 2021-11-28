@@ -100,14 +100,11 @@ export default class Bridge extends Extension {
             this.publishDevices();
             publishEvent('device_announce', {friendly_name: data.device.name, ieee_address: data.device.ieeeAddr});
         });
-
-        // MODIFED_BY_DEXTER_LI_START
         this.eventBus.onMQTTConnected(this, () => {
             this.publishInfo();
             this.publishDevices();
             this.publishGroups();
         });
-        // MODIFED_BY_DEXTER_LI_END
 
         await this.publishInfo();
         await this.publishDevices();

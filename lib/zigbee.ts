@@ -22,7 +22,7 @@ export default class Zigbee {
 
     async start(): Promise<'reset' | 'resumed' | 'restored'> {
         const infoHerdsman = await utils.getDependencyVersion('zigbee-herdsman');
-        logger.info(`Starting zigbee-herdsman (${infoHerdsman.version})`);
+        logger.debug(`Starting zigbee-herdsman (${infoHerdsman.version})`);
         const herdsmanSettings = {
             network: {
                 panID: settings.get().advanced.pan_id === 'GENERATE' ?

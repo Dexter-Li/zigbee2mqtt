@@ -17,7 +17,7 @@ export default class MQTT {
 
     async connect(): Promise<void> {
         const mqttSettings = settings.get().mqtt;
-        logger.info(`Connecting to MQTT server at ${mqttSettings.server}`);
+        logger.debug(`Connecting to MQTT server at ${mqttSettings.server}`);
 
         const options: mqtt.IClientOptions = {
             will: {
@@ -76,9 +76,6 @@ export default class MQTT {
                 resolve();
             });
 
-            // MODIFED_BY_DEXTER_LI_START
-            //this.client.on('error', (err) => reject(err));
-            // MODIFED_BY_DEXTER_LI_END
             this.client.on('message', this.onMessage);
         });
     }
@@ -92,9 +89,7 @@ export default class MQTT {
             }
         }, utils.seconds(10));
 
-        // MODIFED_BY_DEXTER_LI_START
         this.eventBus.emitMQTTConnected();
-        // MODIFED_BY_DEXTER_LI_END
 
         logger.info('Connected to MQTT server');
         this.subscribe(`${settings.get().mqtt.base_topic}/#`);

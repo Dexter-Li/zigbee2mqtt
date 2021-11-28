@@ -45,11 +45,12 @@ class Controller {
     private state: State;
     private mqtt: MQTT;
     private restartCallback: () => void;
-    private exitCallback: (code: number) => void;
+    private exitCallback: (code: number, reason: string | undefined) => void;
     private extensions: Extension[];
     private extensionArgs: ExtensionArgs;
+    private status: string;
 
-    constructor(restartCallback: () => void, exitCallback: (code: number) => void) {
+    constructor(restartCallback: () => void, exitCallback: (code: number, reason: string | undefined) => void) {
         this.eventBus = new EventBus( /* istanbul ignore next */ (error) => {
             logger.error(`Error: ${error.message}`);
             logger.debug(error.stack);
@@ -85,9 +86,15 @@ class Controller {
             /* istanbul ignore next */
             settings.get().advanced.soft_reset_timeout !== 0 && new ExtensionSoftReset(...this.extensionArgs),
         ].filter((n) => n);
+
+        this.status = 'stopped';
     }
 
     async start(): Promise<void> {
+        if (this.status !== 'stopped') {
+            return;
+        }
+        this.status = 'starting';
         this.state.start();
         logger.logOutput();
 
@@ -96,15 +103,25 @@ class Controller {
 
         // Start zigbee
         let startResult;
-        try {
-            startResult = await this.zigbee.start();
-            this.eventBus.onAdapterDisconnected(this, this.onZigbeeAdapterDisconnected);
-        } catch (error) {
-            logger.error('Failed to start zigbee');
-            logger.error('Check https://www.zigbee2mqtt.io/information/FAQ.html#help-zigbee2mqtt-fails-to-start for possible solutions'); /* eslint-disable-line max-len */
-            logger.error('Exiting...');
-            logger.error(error.stack);
-            this.exitCallback(1);
+        let loggedZigbeeStartError = false;
+        while (true) {
+            try {
+                if (this.status !== 'starting') {
+                    return;
+                }
+                startResult = await this.zigbee.start();
+                this.eventBus.onAdapterDisconnected(this, this.onZigbeeAdapterDisconnected);
+                break;
+            } catch (error) {
+                if (!loggedZigbeeStartError) {
+                    logger.error('Failed to start zigbee');
+                    logger.error('Check https://www.zigbee2mqtt.io/information/FAQ.html#help-zigbee2mqtt-fails-to-start for possible solutions'); /* eslint-disable-line max-len */
+                    logger.error('Retrying...');
+                    logger.error(error.stack);
+                    loggedZigbeeStartError = true;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
         }
 
         // Disable some legacy options on new network creation
@@ -139,17 +156,34 @@ class Controller {
         }
 
         // MQTT
-        try {
-            await this.mqtt.connect();
-        } catch (error) {
-            logger.error(`MQTT failed to connect: ${error.message}`);
-            logger.error('Exiting...');
-            await this.zigbee.stop();
-            this.exitCallback(1);
+        let loggedMqttStartError = false
+        while (true) {
+            try {
+                if (this.status !== 'starting') {
+                    return;
+                }
+                if (this.mqtt.isConnected()) {
+                    break;
+                }
+                if (!loggedMqttStartError) {
+                    logger.info(`Connecting to MQTT server at ${settings.get().mqtt.server}`);
+                }
+                await this.mqtt.connect();
+                break;
+            } catch (error) {
+                if (!loggedMqttStartError) {
+                    logger.error(`MQTT failed to connect: ${error.message}`);
+                    logger.error('Retrying...');
+                    loggedMqttStartError = true;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
         }
 
         // Call extensions
         await this.callExtensions('start', [...this.extensions]);
+
+        this.status = 'started';
 
         // Send all cached states.
         if (settings.get().advanced.cache_state_send_on_startup && settings.get().advanced.cache_state) {
@@ -187,28 +221,34 @@ class Controller {
         await this.callExtensions('start', [extension]);
     }
 
-    async stop(): Promise<void> {
-        // Call extensions
-        await this.callExtensions('stop', this.extensions);
-        this.eventBus.removeListeners(this);
-
-        // Wrap-up
-        this.state.stop();
-        await this.mqtt.disconnect();
-
+    async stop(reason: string | undefined=undefined): Promise<void> {
         try {
+            if (this.status === 'stopping') {
+                return;
+            }
+            this.status = 'stopping';
+            // Call extensions
+            await this.callExtensions('stop', this.extensions);
+            this.eventBus.removeListeners(this);
+
+            // Wrap-up
+            this.state.stop();
+            if (this.mqtt.isConnected()) {
+                await this.mqtt.disconnect();
+            }
+
             await this.zigbee.stop();
             logger.info('Stopped Zigbee2MQTT');
-            this.exitCallback(0);
+            this.exitCallback(0, reason);
         } catch (error) {
             logger.error('Failed to stop Zigbee2MQTT');
-            this.exitCallback(1);
+            this.exitCallback(1, reason);
         }
     }
 
     @bind async onZigbeeAdapterDisconnected(): Promise<void> {
-        logger.error('Adapter disconnected, stopping');
-        await this.stop();
+        logger.error('Adapter disconnected, restarting...');
+        this.restartCallback();
     }
 
     @bind async publishEntityState(entity: Group | Device, payload: KeyValue,

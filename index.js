@@ -10,6 +10,7 @@ const rimraf = require('rimraf');
 require('source-map-support').install();
 
 let controller;
+let logger
 let stopping = false;
 
 const hashFile = path.join(__dirname, 'dist', '.hash');
@@ -71,9 +72,10 @@ async function checkDist() {
 async function start() {
     await checkDist();
 
+    logger = require('./dist/util/logger').default
     const version = engines.node;
     if (!semver.satisfies(process.version, version)) {
-        console.log(`\t\tZigbee2MQTT requires node version ${version}, you are running ${process.version}!\n`); // eslint-disable-line
+        logger.error(`\t\tZigbee2MQTT requires node version ${version}, you are running ${process.version}!\n`); // eslint-disable-line
     }
 
     // Validate settings
@@ -81,27 +83,24 @@ async function start() {
     settings.reRead();
     const errors = settings.validate();
     if (errors.length > 0) {
-        console.log(`\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
-        console.log('            READ THIS CAREFULLY\n');
-        console.log(`Refusing to start because configuration is not valid, found the following errors:`);
+        logger.error(`\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
+        logger.error('            READ THIS CAREFULLY\n');
+        logger.error(`Refusing to start because configuration is not valid, found the following errors:`);
         for (const error of errors) {
-            console.log(`- ${error}`);
+            logger.error(`- ${error}`);
         }
-        console.log(`\nIf you don't know how to solve this, read https://www.zigbee2mqtt.io/information/configuration.html`); // eslint-disable-line
-        console.log(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n`);
+        logger.error(`\nIf you don't know how to solve this, read https://www.zigbee2mqtt.io/information/configuration.html`); // eslint-disable-line
+        logger.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n`);
         exit(1);
     }
 
     const Controller = require('./dist/controller');
     controller = new Controller(restart, exit);
-    // MODIFED_BY_DEXTER_LI_START
-    //await controller.start();
     controller.start();
-    // MODIFED_BY_DEXTER_LI_END
 }
 
 async function stop(reason=null) {
-    await controller.stop(reason);
+    await controller?.stop(reason);
 }
 
 async function handleQuit() {
@@ -117,7 +116,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     process.on('SIGINT', handleQuit);
     process.on('SIGTERM', handleQuit);
     start();
-    // MODIFED_BY_DEXTER_LI_START
+
     const express = require('express')
     const settings = require('./dist/util/settings');
 
@@ -137,10 +136,30 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.put('/api/z2m/zigbee/blocklist/:id', addBlockList)
     app.delete('/api/z2m/zigbee/blocklist/:id', removeBlockList)
 
+    async function _connectMqttBroker() {
+        try {
+            if (controller !== undefined && !controller.mqtt.isConnected()) {
+                await controller.mqtt.connect()
+            }
+        } catch (e) {
+            logger?.error(`MQTT failed to connect: ${e.message}`)
+        }
+    }
+
+    async function _disconnectMqttBroker() {
+        try {
+            if (controller !== undefined && controller.mqtt.isConnected()) {
+                await controller.mqtt.disconnect()
+            } 
+        } catch (e) {
+            logger?.error(`MQTT failed to disconnect: ${e.message}`)
+        }
+    }
+
     function getMQttServerStatus(req, res) {
         return res.json({
             error: 'OK',
-            connected: !!controller.mqtt.isConnected()
+            connected: !!controller?.mqtt.isConnected()
         })
     }
 
@@ -154,9 +173,9 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     async function setMqttURI(req, res, next) {
         try {
-            await controller.mqtt.disconnect()
+            await _disconnectMqttBroker()
             settings.set(['mqtt', 'server'], req.body.uri)
-            controller.mqtt.connect()
+            _connectMqttBroker()
         } catch (e) {
             return next(e)
         }
@@ -167,10 +186,10 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     async function setMqttCredential(req, res, next) {
         try {
-            await controller.mqtt.disconnect()
+            await _disconnectMqttBroker()
             settings.set(['mqtt', 'user'], req.body.userName)
             settings.set(['mqtt', 'password'], req.body.password)
-            controller.mqtt.connect()
+            _connectMqttBroker()
         } catch (e) {
             return next(e)
         }
@@ -187,18 +206,19 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     }
 
     function getDevices(req, res) {
+        const devices = controller?.zigbee.devices(false)
         return res.json({
             error: 'OK',
-            devices: controller.zigbee.devices(false)
+            devices: devices ? devices : []
         })
     }
 
     async function deleteDevice(req, res, next) {
         try {
-            if (controller.mqtt.isConnected()) {
+            if (controller?.mqtt.isConnected()) {
                 await controller.extensions[0].deviceRemove({id: req.params.id})
             } else {
-                const device = controller.zigbee.resolveEntity(req.params.id);
+                const device = controller?.zigbee.resolveEntity(req.params.id);
                 if (!device || device.constructor.name.toLowerCase() !== 'device') {
                     throw new Error(`Device '${req.params.id}' does not exist`);
                 }
@@ -228,19 +248,19 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     function getPermitJoin(req, res) {
         return res.json({
             error: 'OK',
-            permitJoin: controller.zigbee.getPermitJoin()
+            permitJoin: !!controller?.zigbee.getPermitJoin()
         })
     }
 
     async function changePermitJoin(req, res, next) {
         try {
-            await controller.zigbee.permitJoin(req.body.permitJoin)
+            await controller?.zigbee.permitJoin(req.body.permitJoin)
         } catch (e) {
             return next(e)
         }
         return res.json({
             error: 'OK',
-            permitJoin: controller.zigbee.getPermitJoin()
+            permitJoin: !!controller?.zigbee.getPermitJoin()
         })
     }
 
@@ -254,7 +274,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     async function addBlockList(req, res, next) {
         settings.blockDevice(req.params.id)
         try {
-            const device = controller.zigbee.resolveEntity(req.params.id)
+            const device = controller?.zigbee.resolveEntity(req.params.id)
             try {
                 if (device && device.constructor.name.toLowerCase() === 'device') {
                     if (controller.mqtt.isConnected()) {
@@ -305,5 +325,4 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
       })
 
     app.listen(9601, '127.0.0.1');
-    // MODIFED_BY_DEXTER_LI_END
 }
