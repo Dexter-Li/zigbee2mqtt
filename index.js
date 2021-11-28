@@ -124,6 +124,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     const app = express()
     app.use(express.json())
 
+    app.get('/api/z2m/mqtt/status', getMQttServerStatus)
     app.get('/api/z2m/mqtt/uri', getMqttServerURI)
     app.put('/api/z2m/mqtt/uri', setMqttURI)
     app.put('/api/z2m/mqtt/credential', setMqttCredential)
@@ -136,27 +137,43 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.put('/api/z2m/zigbee/blocklist/:id', addBlockList)
     app.delete('/api/z2m/zigbee/blocklist/:id', removeBlockList)
 
-    function getMqttServerURI(req, res) {
+    function getMQttServerStatus(req, res) {
         return res.json({
             error: 'OK',
-            uri: settings.get().mqtt.server ? settings.get().mqtt.server : ''
+            connected: !!controller.mqtt.isConnected()
         })
     }
 
-    async function setMqttURI(req, res) {
-        await controller.mqtt.disconnect()
-        settings.set(['mqtt', 'server'], req.body.uri)
-        controller.mqtt.connect()
+    function getMqttServerURI(req, res) {
+        const server = settings.get().mqtt.server
+        return res.json({
+            error: 'OK',
+            uri: server !== undefined ? server : ''
+        })
+    }
+
+    async function setMqttURI(req, res, next) {
+        try {
+            await controller.mqtt.disconnect()
+            settings.set(['mqtt', 'server'], req.body.uri)
+            controller.mqtt.connect()
+        } catch (e) {
+            return next(e)
+        }
         return res.json({
             error: 'OK'
         })
     }
 
-    async function setMqttCredential(req, res) {
-        await controller.mqtt.disconnect()
-        settings.set(['mqtt', 'user'], req.body.userName)
-        settings.set(['mqtt', 'password'], req.body.password)
-        controller.mqtt.connect()
+    async function setMqttCredential(req, res, next) {
+        try {
+            await controller.mqtt.disconnect()
+            settings.set(['mqtt', 'user'], req.body.userName)
+            settings.set(['mqtt', 'password'], req.body.password)
+            controller.mqtt.connect()
+        } catch (e) {
+            return next(e)
+        }
         return res.json({
             error: 'OK'
         })
@@ -176,12 +193,12 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         })
     }
 
-    async function deleteDevice(req, res) {
+    async function deleteDevice(req, res, next) {
         try {
             if (controller.mqtt.isConnected()) {
-                await controller.extentions[0].deviceRemove({id: req.params.id})
+                await controller.extensions[0].deviceRemove({id: req.params.id})
             } else {
-                const device = this.zigbee.resolveEntity(req.params.id);
+                const device = controller.zigbee.resolveEntity(req.params.id);
                 if (!device || device.constructor.name.toLowerCase() !== 'device') {
                     throw new Error(`Device '${req.params.id}' does not exist`);
                 }
@@ -194,14 +211,13 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
             }
         } catch(e) {
             if (e.message.endsWith('does not exist')){
-                res.setStatus(404)
+                res.status(404)
+                return res.json({
+                    error: e.message
+                })
             } else {
-                res.setStatus(500)
+                return next(e)
             }
-            return res.json({
-                error: 'OK',
-                message: e.message
-            })
         }
         
         return res.json({
@@ -209,15 +225,19 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         })
     }
 
-    async function getPermitJoin(req, res) {
+    function getPermitJoin(req, res) {
         return res.json({
             error: 'OK',
             permitJoin: controller.zigbee.getPermitJoin()
         })
     }
 
-    async function changePermitJoin(req, res) {
-        await controller.zigbee.permitJoin(req.body.permitJoin)
+    async function changePermitJoin(req, res, next) {
+        try {
+            await controller.zigbee.permitJoin(req.body.permitJoin)
+        } catch (e) {
+            return next(e)
+        }
         return res.json({
             error: 'OK',
             permitJoin: controller.zigbee.getPermitJoin()
@@ -231,24 +251,27 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         })
     }
 
-    async function addBlockList(req, res) {
+    async function addBlockList(req, res, next) {
         settings.blockDevice(req.params.id)
         try {
-            if (controller.mqtt.isConnected()) {
-                await controller.extentions[0].deviceRemove({id: req.params.id})
-            } else {
-                const device = this.zigbee.resolveEntity(req.params.id);
-                if (!device || device.constructor.name.toLowerCase() !== 'device') {
-                    throw new Error()
+            const device = controller.zigbee.resolveEntity(req.params.id)
+            try {
+                if (device && device.constructor.name.toLowerCase() === 'device') {
+                    if (controller.mqtt.isConnected()) {
+                        await controller.extensions[0].deviceRemove({id: req.params.id})
+                    } else {
+                        await device.zh.removeFromNetwork()
+                        settings.removeDevice(device.ID)
+                        controller.state.remove(device.ID)
+                        const id = device.ID
+                        const name = device.name
+                        controller.eventBus.emitDeviceRemoved({id, name});
+                    }
                 }
-                await device.zh.removeFromNetwork()
-                settings.removeDevice(device.ID)
-                controller.state.remove(device.ID)
-                const id = device.ID
-                const name = device.name
-                controller.eventBus.emitDeviceRemoved({id, name});
+            } catch (e) {
+                return next(e)
             }
-        } catch(e) {
+        } catch (e) {
         }
         
         return res.json({
@@ -260,7 +283,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         if (settings.get().blocklist !== undefined) {
             var blockList = settings.get().blocklist
             while (true) {
-                const index = blockList.indexOf(req.body.id)
+                const index = blockList.indexOf(req.params.id)
                 if (index !== -1) {
                     blockList.splice(index, 1)
                 } else {
@@ -273,6 +296,13 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
             error: 'OK'
         })
     }
+
+    app.use(function (err, req, res, next) {
+        console.error(err.stack)
+        res.status(500).json({
+            error: err.message
+        })
+      })
 
     app.listen(9601, '127.0.0.1');
     // MODIFED_BY_DEXTER_LI_END
