@@ -115,6 +115,9 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 } else {
     process.on('SIGINT', handleQuit);
     process.on('SIGTERM', handleQuit);
+    process.on('uncaughtException', function(err) {
+        logger?.error('Caught exception: ' + err);
+    });
     start();
 
     const express = require('express')

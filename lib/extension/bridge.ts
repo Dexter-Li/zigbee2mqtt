@@ -509,7 +509,11 @@ export default class Bridge extends Extension {
                 if (force) {
                     await entity.zh.removeFromDatabase();
                 } else {
-                    await entity.zh.removeFromNetwork();
+                    try {
+                        await entity.zh.removeFromNetwork();
+                    } catch (e) {
+                        await entity.zh.removeFromDatabase();
+                    }
                 }
             } else {
                 if (force) {
