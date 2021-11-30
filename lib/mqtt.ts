@@ -17,7 +17,7 @@ export default class MQTT {
 
     async connect(): Promise<void> {
         const mqttSettings = settings.get().mqtt;
-        logger.debug(`Connecting to MQTT server at ${mqttSettings.server}`);
+        logger.info(`Connecting to MQTT server at ${mqttSettings.server}`);
 
         const options: mqtt.IClientOptions = {
             will: {
@@ -76,6 +76,8 @@ export default class MQTT {
                 resolve();
             });
 
+            this.client.on('error', (err) => reject(err))
+            this.client.on('end', () => reject('The client has been ended.'))
             this.client.on('message', this.onMessage);
         });
     }
@@ -116,7 +118,11 @@ export default class MQTT {
     }
 
     isConnected(): boolean {
-        return this.client && !this.client.reconnecting;
+        return this.client && this.client.connected && !this.client.disconnecting && !this.client.reconnecting && !this.client.disconnected;
+    }
+
+    isReconnecting(): boolean {
+        return this.client && !!this.client.reconnecting
     }
 
     async publish(topic: string, payload: string, options: MQTTOptions={},

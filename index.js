@@ -151,9 +151,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     async function _disconnectMqttBroker() {
         try {
-            if (controller !== undefined && controller.mqtt.isConnected()) {
-                await controller.mqtt.disconnect()
-            } 
+            await controller.mqtt.disconnect()
         } catch (e) {
             logger?.error(`MQTT failed to disconnect: ${e.message}`)
         }

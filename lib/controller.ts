@@ -164,9 +164,11 @@ class Controller {
                 }
                 if (this.mqtt.isConnected()) {
                     break;
-                }
-                if (!loggedMqttStartError) {
-                    logger.info(`Connecting to MQTT server at ${settings.get().mqtt.server}`);
+                } else {
+                    try {
+                        await this.mqtt.disconnect()
+                    } catch (e) {
+                    }
                 }
                 await this.mqtt.connect();
                 break;
@@ -233,8 +235,9 @@ class Controller {
 
             // Wrap-up
             this.state.stop();
-            if (this.mqtt.isConnected()) {
+            try{
                 await this.mqtt.disconnect();
+            } catch (e) {
             }
 
             await this.zigbee.stop();
