@@ -125,6 +125,10 @@ export default class MQTT {
         return this.client && !!this.client.reconnecting
     }
 
+    isFirstConnection(): boolean {
+        return this.client === undefined
+    }
+
     async publish(topic: string, payload: string, options: MQTTOptions={},
         base=settings.get().mqtt.base_topic, skipLog=false, skipReceive=true,
     ): Promise<void> {

@@ -120,7 +120,7 @@ class Controller {
                     logger.error(error.stack);
                     loggedZigbeeStartError = true;
                 }
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 10000));
             }
         }
 
@@ -166,7 +166,9 @@ class Controller {
                     break;
                 } else {
                     try {
-                        await this.mqtt.disconnect()
+                        if (!this.mqtt.isFirstConnection()) {
+                            await this.mqtt.disconnect()
+                        }
                     } catch (e) {
                     }
                 }
@@ -178,7 +180,7 @@ class Controller {
                     logger.error('Retrying...');
                     loggedMqttStartError = true;
                 }
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 10000));
             }
         }
 
