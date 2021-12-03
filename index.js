@@ -138,6 +138,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.get('/api/z2m/zigbee/blocklist', getBlockList)
     app.put('/api/z2m/zigbee/blocklist/:id', addBlockList)
     app.delete('/api/z2m/zigbee/blocklist/:id', removeBlockList)
+    app.post('/api/z2m/zigbee/devices/:id/friendlyName', setFriendlyName)
 
     async function _connectMqttBroker() {
         try {
@@ -208,9 +209,11 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     function getDevices(req, res) {
         const devices = controller?.zigbee.devices(false)
+        const devicesCfg = settings.get().devices
+        const devicesInfo = devices ? devices.map(dev => ({...(dev.zh), friendlyName: devicesCfg[dev.zh._ieeeAddr]?.friendly_name})) : []
         return res.json({
             error: 'OK',
-            devices: devices ? devices : []
+            devices: devicesInfo
         })
     }
 
@@ -316,6 +319,20 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         return res.json({
             error: 'OK'
         })
+    }
+
+    function setFriendlyName(req, res) {
+        if (settings.get().devices[req.params.id] !== undefined) {
+            settings.set(['devices', req.params.id, 'friendly_name'], req.body.friendlyName)
+            return res.json({
+                error: 'OK'
+            })
+        } else {
+            res.status(404)
+            return res.json({
+                error: 'Device not exist.'
+            })
+        }
     }
 
     app.use(function (err, req, res, next) {
