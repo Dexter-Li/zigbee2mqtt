@@ -139,6 +139,8 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.put('/api/z2m/zigbee/blocklist/:id', addBlockList)
     app.delete('/api/z2m/zigbee/blocklist/:id', removeBlockList)
     app.post('/api/z2m/zigbee/devices/:id/friendlyName', setFriendlyName)
+    app.post('/api/z2m/log/loglevel', setLoglevel)
+    app.get('/api/z2m/log/logfile', getLogfile)
 
     async function _connectMqttBroker() {
         try {
@@ -333,6 +335,33 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
                 error: 'Device not exist.'
             })
         }
+    }
+
+    function setLoglevel(req, res) {
+        if (['debug', 'info', 'warn', 'error'].includes(req.loglevel)) {
+            settings.set(['advanced', 'log_level'], req.loglevel)
+            return res.json({
+                error: 'OK'
+            })
+        } else {
+            res.status(400)
+            return res.json({
+                error: 'Invalid loglevel string.'
+            })
+        }
+
+    }
+
+    async function getLogfile(req, res) {
+        var Archiver = require('archiver');
+
+        res.writeHead(200, {
+            'Content-Type': 'application/zip',
+            'Content-disposition': `attachment; filename=z2mlog_${Date.now()}.zip`
+        });
+        var zip = Archiver('zip');
+        zip.pipe(res);
+        zip.directory('./data/log/', false).finalize();
     }
 
     app.use(function (err, req, res, next) {
