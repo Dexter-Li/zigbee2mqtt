@@ -140,6 +140,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.delete('/api/z2m/zigbee/blocklist/:id', removeBlockList)
     app.post('/api/z2m/zigbee/devices/:id/friendlyName', setFriendlyName)
     app.post('/api/z2m/log/loglevel', setLoglevel)
+    app.get('/api/z2m/log/loglevel', getLoglevel)
     app.get('/api/z2m/log/logfile', getLogfile)
 
     async function _connectMqttBroker() {
@@ -338,8 +339,8 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     }
 
     function setLoglevel(req, res) {
-        if (['debug', 'info', 'warn', 'error'].includes(req.loglevel)) {
-            settings.set(['advanced', 'log_level'], req.loglevel)
+        if (['debug', 'info', 'warn', 'error'].includes(req.body.loglevel)) {
+            settings.set(['advanced', 'log_level'], req.body.loglevel)
             return res.json({
                 error: 'OK'
             })
@@ -349,7 +350,14 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
                 error: 'Invalid loglevel string.'
             })
         }
+    }
 
+    function getLoglevel(req, res) {
+        const loglevel = settings.get()?.advanced?.log_level
+        return res.json({
+            error: 'OK',
+            loglevel: loglevel ? loglevel : 'info'
+        })
     }
 
     async function getLogfile(req, res) {
