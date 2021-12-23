@@ -70,7 +70,7 @@ async function checkDist() {
 }
 
 async function start() {
-    await checkDist();
+    //await checkDist();
 
     logger = require('./dist/util/logger').default
     const version = engines.node;
