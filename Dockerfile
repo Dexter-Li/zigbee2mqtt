@@ -8,11 +8,12 @@ COPY package.json ./
 # Dependencies and build
 FROM base as dependencies_and_build
 
+RUN apk add --no-cache --virtual .buildtools make gcc g++ python3 linux-headers
+
 COPY npm-shrinkwrap.json tsconfig.json index.js ./
 COPY lib ./lib
 
-RUN apk add --no-cache --virtual .buildtools make gcc g++ python3 linux-headers git && \
-    npm ci --no-audit --no-optional --no-update-notifier && \
+RUN npm ci --no-audit --no-optional --no-update-notifier && \
     npm run build && \
     rm -rf node_modules && \
     npm ci --production --no-audit --no-optional --no-update-notifier && \
