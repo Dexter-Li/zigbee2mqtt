@@ -341,6 +341,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     function setLoglevel(req, res) {
         if (['debug', 'info', 'warn', 'error'].includes(req.body.loglevel)) {
             settings.set(['advanced', 'log_level'], req.body.loglevel)
+            logger.setLevel(req.body.loglevel)
             return res.json({
                 error: 'OK'
             })
