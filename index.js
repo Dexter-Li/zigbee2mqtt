@@ -380,5 +380,5 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         })
       })
 
-    app.listen(9601, '127.0.0.1');
+    app.listen(9601, process.env.Z2M_IN_CONTAINER ? '0.0.0.0' : '127.0.0.1');
 }
