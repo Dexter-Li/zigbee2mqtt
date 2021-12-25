@@ -261,7 +261,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     async function changePermitJoin(req, res, next) {
         try {
-            await controller?.zigbee.permitJoin(req.body.permitJoin)
+            await controller?.zigbee.permitJoin(req.body.permitJoin, undefined, 1800)
         } catch (e) {
             return next(e)
         }
