@@ -17,13 +17,9 @@ import bind from 'bind-decorator';
  */
 export default class Frontend extends Extension {
     private mqttBaseTopic = settings.get().mqtt.base_topic;
-    private host = settings.get().frontend.host || '0.0.0.0';
-    private port = settings.get().frontend.port || 8080;
-    private authToken = settings.get().frontend.auth_token || false;
+    private host = process.env.Z2M_IN_CONTAINER ? '0.0.0.0' : '127.0.0.1';
+    private port = 9602;
     private retainedMessages = new Map();
-    private server: http.Server;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private fileServer: serveStatic.RequestHandler<any>;
     private wss: WebSocket.Server = null;
 
     constructor(zigbee: Zigbee, mqtt: MQTT, state: State, publishEntityState: PublishEntityState,
@@ -34,22 +30,9 @@ export default class Frontend extends Extension {
     }
 
     override async start(): Promise<void> {
-        this.server = http.createServer(this.onRequest);
-        this.server.on('upgrade', this.onUpgrade);
-
-        /* istanbul ignore next */ // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const options = {setHeaders: (res: any, path: any): void => {
-            if (path.endsWith('index.html')) {
-                res.setHeader('Cache-Control', 'no-store');
-            }
-        }};
-
-        this.fileServer = serveStatic(frontend.getPath(), options);
-        this.wss = new WebSocket.Server({noServer: true});
+        this.wss = new WebSocket.Server({host: this.host, port: this.port});
         this.wss.on('connection', this.onWebSocketConnection);
-
-        this.server.listen(this.port, this.host);
-        logger.info(`Started frontend on port ${this.host}:${this.port}`);
+        logger.info(`Started ws on port ${this.host}:${this.port}`);
     }
 
     override async stop(): Promise<void> {
@@ -58,30 +41,7 @@ export default class Frontend extends Extension {
             client.send(stringify({topic: 'bridge/state', payload: 'offline'}));
             client.terminate();
         }
-        this.wss.close();
-        return new Promise((cb: () => void) => this.server.close(cb));
-    }
-
-    @bind private onRequest(request: http.IncomingMessage, response: http.ServerResponse): void {
-        // @ts-ignore
-        this.fileServer(request, response, finalhandler(request, response));
-    }
-
-    private authenticate(request: http.IncomingMessage, cb: (authenticate: boolean) => void): void {
-        const {query} = url.parse(request.url, true);
-        cb(!this.authToken || this.authToken === query.token);
-    }
-
-    @bind private onUpgrade(request: http.IncomingMessage, socket: net.Socket, head: Buffer): void {
-        this.wss.handleUpgrade(request, socket, head, (ws) => {
-            this.authenticate(request, (isAuthentificated) => {
-                if (isAuthentificated) {
-                    this.wss.emit('connection', ws, request);
-                } else {
-                    ws.close(4401, 'Unauthorized');
-                }
-            });
-        });
+        return new Promise((cb: () => void) => this.wss.close(cb));
     }
 
     @bind private onWebSocketConnection(ws: WebSocket): void {

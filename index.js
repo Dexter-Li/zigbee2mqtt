@@ -138,7 +138,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.get('/api/z2m/zigbee/blocklist', getBlockList)
     app.put('/api/z2m/zigbee/blocklist/:id', addBlockList)
     app.delete('/api/z2m/zigbee/blocklist/:id', removeBlockList)
-    app.post('/api/z2m/zigbee/devices/:id/friendlyName', setFriendlyName)
+    app.post('/api/z2m/zigbee/devices/:id/alias', setDeviceAlias)
     app.post('/api/z2m/log/loglevel', setLoglevel)
     app.get('/api/z2m/log/loglevel', getLoglevel)
     app.get('/api/z2m/log/logfile', getLogfile)
@@ -213,7 +213,10 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     function getDevices(req, res) {
         const devices = controller?.zigbee.devices(false)
         const devicesCfg = settings.get().devices
-        const devicesInfo = devices ? devices.map(dev => ({...(dev.zh), friendlyName: devicesCfg[dev.zh._ieeeAddr]?.friendly_name})) : []
+        const devicesInfo = devices ? devices.map((dev) => {
+            const alias = devicesCfg[dev.zh._ieeeAddr]?.alias
+            return {...(dev.zh), alias: alias !== undefined ? alias : ''}
+        }) : []
         return res.json({
             error: 'OK',
             devices: devicesInfo
@@ -324,9 +327,15 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         })
     }
 
-    function setFriendlyName(req, res) {
+    async function setDeviceAlias(req, res) {
         if (settings.get().devices[req.params.id] !== undefined) {
-            settings.set(['devices', req.params.id, 'friendly_name'], req.body.friendlyName)
+            settings.set(['devices', req.params.id, 'alias'], req.body.alias)
+            if (controller.mqtt.isConnected()) {
+                try {
+                    await controller.extensions[0].publishDevices()
+                } catch (e) {
+                }
+            }
             return res.json({
                 error: 'OK'
             })

@@ -79,7 +79,7 @@ class Controller {
             new ExtensionReport(...this.extensionArgs),
             new ExtensionExternalExtension(...this.extensionArgs),
             new ExtensionAvailability(...this.extensionArgs),
-            settings.get().frontend && new ExtensionFrontend(...this.extensionArgs),
+            new ExtensionFrontend(...this.extensionArgs),
             settings.get().advanced.legacy_api && new ExtensionBridgeLegacy(...this.extensionArgs),
             settings.get().external_converters.length && new ExtensionExternalConverters(...this.extensionArgs),
             settings.get().homeassistant && new ExtensionHomeAssistant(...this.extensionArgs),

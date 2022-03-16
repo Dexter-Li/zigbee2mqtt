@@ -12,6 +12,9 @@ export default class Device {
     get name(): string {
         return this.zh.type === 'Coordinator' ? 'Coordinator' : this.settings?.friendly_name || this.ieeeAddr;
     }
+    get alias(): string {
+        return this.settings.alias !== undefined ?  this.settings.alias : this.name;
+    }
     get definition(): zhc.Definition {
         if (!this._definition && !this.zh.interviewing) {
             this._definition = zigbeeHerdsmanConverters.findByDevice(this.zh);

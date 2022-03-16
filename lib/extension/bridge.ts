@@ -662,6 +662,7 @@ export default class Bridge extends Extension {
                 interviewing: device.zh.interviewing,
                 interview_completed: device.zh.interviewCompleted,
                 manufacturer: device.zh.manufacturerName,
+                alias: device.alias,
                 endpoints,
             };
         });

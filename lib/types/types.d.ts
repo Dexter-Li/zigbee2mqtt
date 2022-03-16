@@ -282,6 +282,7 @@ declare global {
         legacy?: boolean,
         filtered_attributes?: string[],
         friendly_name: string,
+        alias?: string,
     }
 
     interface GroupSettings {
