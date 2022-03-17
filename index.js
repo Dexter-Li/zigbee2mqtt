@@ -12,12 +12,16 @@ require('source-map-support').install();
 let controller;
 let logger
 let stopping = false;
+let restarting = false;
 
 const hashFile = path.join(__dirname, 'dist', '.hash');
 
-async function restart() {
+async function restart(updateConfig = () => {}) {
+    restarting = true;
     await stop(indexJsRestart);
+    updateConfig();
     await start();
+    restarting = false;
 }
 
 async function exit(code, reason) {
@@ -125,12 +129,22 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     const app = express()
     app.use(express.json())
+    app.use((req, res, next) => {
+        if (restarting || stopping) {
+            return res.status(503).json({
+                error: "Z2M service is stopping/restarting."
+            })
+        } else {
+            next()
+        }
+    })
 
     app.get('/api/z2m/mqtt/status', getMQttServerStatus)
     app.get('/api/z2m/mqtt/uri', getMqttServerURI)
     app.put('/api/z2m/mqtt/uri', setMqttURI)
     app.put('/api/z2m/mqtt/credential', setMqttCredential)
     app.get('/api/z2m/mqtt/credential/userName', getMqttUserName)
+    app.put('/api/z2m/mqtt/baseTopic', setMqttBaseTopic)
     app.get('/api/z2m/zigbee/devices', getDevices)
     app.delete('/api/z2m/zigbee/devices/:id', deleteDevice)
     app.get('/api/z2m/zigbee/permitJoin', getPermitJoin)
@@ -207,6 +221,23 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         return res.json({
             error: 'OK',
             userName: settings.get().mqtt.user ? settings.get().mqtt.user : ''
+        })
+    }
+
+    async function setMqttBaseTopic(req, res, next) {
+        if (!req.body.baseTopic) {
+            return res.status(400).end()
+        }
+        if (req.body.baseTopic !== settings.get().mqtt.base_topic) {
+            try {
+                await restart(() => {settings.set(['mqtt', 'base_topic'], req.body.baseTopic)})
+            } catch (e) {
+                return next(e)
+            }
+        }
+        return res.json({
+            error: 'OK',
+            baseTopic: settings.get().mqtt.base_topic
         })
     }
 

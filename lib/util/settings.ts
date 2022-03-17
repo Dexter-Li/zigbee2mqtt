@@ -508,7 +508,7 @@ export function addDevice(ID: string): DeviceSettings {
         settings.devices = {};
     }
 
-    settings.devices[ID] = {friendly_name: ID};
+    settings.devices[ID] = {friendly_name: ID, alias: ID};
     write();
     return getDevice(ID);
 }
