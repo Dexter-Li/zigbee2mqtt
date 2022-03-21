@@ -37,11 +37,13 @@ export default class Frontend extends Extension {
 
     override async stop(): Promise<void> {
         super.stop();
-        for (const client of this.wss.clients) {
-            client.send(stringify({topic: 'bridge/state', payload: 'offline'}));
-            client.terminate();
+        if (this.wss !== null) {
+            for (const client of this.wss.clients) {
+                client.send(stringify({topic: 'bridge/state', payload: 'offline'}));
+                client.terminate();
+            }
+            return new Promise((cb: () => void) => this.wss.close(cb));
         }
-        return new Promise((cb: () => void) => this.wss.close(cb));
     }
 
     @bind private onWebSocketConnection(ws: WebSocket): void {
