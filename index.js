@@ -232,7 +232,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
             logger?.info(`Change mqtt topic from ${settings.get().mqtt.base_topic} to ${req.body.baseTopic} will restart z2m process.`)
             try {
                 settings.set(['mqtt', 'base_topic'], req.body.baseTopic)
-                await controller.stop()
+                await handleQuit()
             } catch (e) {
                 return next(e)
             }
