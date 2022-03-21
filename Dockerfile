@@ -1,12 +1,12 @@
 FROM arm32v7/node:16-alpine3.12 as base
 
 WORKDIR /app
-RUN apk add --no-cache tzdata eudev tini
+RUN apk add -X http://mirrors.aliyun.com/alpine/v3.12/main -X http://mirrors.aliyun.com/alpine/v3.12/community --no-cache tzdata eudev tini
 
 # Dependencies and build
 FROM base as dependencies_and_build
 
-RUN apk add --no-cache --virtual .buildtools make gcc g++ python3 linux-headers
+RUN apk add -X http://mirrors.aliyun.com/alpine/v3.12/main -X http://mirrors.aliyun.com/alpine/v3.12/community --no-cache --virtual .buildtools make gcc g++ python3 linux-headers
 
 COPY package.json npm-shrinkwrap.json tsconfig.json index.js ./
 COPY lib ./lib
