@@ -147,6 +147,7 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.put('/api/z2m/mqtt/baseTopic', setMqttBaseTopic)
     app.get('/api/z2m/zigbee/devices', getDevices)
     app.delete('/api/z2m/zigbee/devices/:id', deleteDevice)
+    app.post('/api/z2m/zigbee/devices/:id', pingDevice)
     app.get('/api/z2m/zigbee/permitJoin', getPermitJoin)
     app.post('/api/z2m/zigbee/permitJoin', changePermitJoin)
     app.get('/api/z2m/zigbee/blocklist', getBlockList)
@@ -156,6 +157,8 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.post('/api/z2m/log/loglevel', setLoglevel)
     app.get('/api/z2m/log/loglevel', getLoglevel)
     app.get('/api/z2m/log/logfile', getLogfile)
+    app.get('/api/z2m/zigbee/availability', getAvailability)
+    app.put('/api/z2m/zigbee/availability', setAvailability)
 
     async function _connectMqttBroker() {
         try {
@@ -289,6 +292,28 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         })
     }
 
+    async function pingDevice(req, res) {
+        const device = controller?.zigbee.resolveEntity(req.params.id);
+        if (!device || device.constructor.name.toLowerCase() !== 'device') {
+            res.status(404)
+            return res.json({
+                error: `Device '${req.params.id}' does not exist`
+            })
+        }
+        try {
+            if ((device.zh.type === 'Router' && device.zh.powerSource !== 'Battery') ||
+                device.zh.powerSource === 'Mains (single phase)') {
+                await device.zh.ping()
+            }
+        } catch (e) {
+            logger.error(`Failed to ping '${device.name}', error message: ${e.message}`)
+        }
+        return res.json({
+            error: 'OK',
+            lastSeen: device.zh.lastSeen
+        })
+    }
+
     function getPermitJoin(req, res) {
         return res.json({
             error: 'OK',
@@ -414,6 +439,41 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         var zip = Archiver('zip');
         zip.pipe(res);
         zip.directory('./data/log/', false).finalize();
+    }
+
+    function setAvailability(req, res) {
+        const activeTimeout = parseInt(req.body.activeTimeout)
+        const passiveTimeout = parseInt(req.body.passiveTimeout)
+        if (activeTimeout > 0 && passiveTimeout > 0) {
+            settings.set(['availability', 'active', 'timeout'], activeTimeout)
+            settings.set(['availability', 'passive', 'timeout'], passiveTimeout)
+            return res.json({
+                error: 'OK'
+            })
+        } else {
+            res.status(400)
+            return res.json({
+                error: 'Invalid timeout value.'
+            })
+        }
+    }
+
+    function getAvailability(req, res) {
+        var activeTimeout = settings.get()?.availability?.active?.timeout
+        var passiveTimeout = settings.get()?.availability?.passive?.timeout
+        if (activeTimeout === undefined || activeTimeout <= 0) {
+            activeTimeout = 5
+            settings.set(['availability', 'active', 'timeout'], activeTimeout)
+        }
+        if (passiveTimeout === undefined || passiveTimeout <= 0) {
+            passiveTimeout = 30
+            settings.set(['availability', 'passive', 'timeout'], passiveTimeout)
+        }
+        return res.json({
+            error: 'OK',
+            activeTimeout: activeTimeout,
+            passiveTimeout: passiveTimeout
+        })
     }
 
     app.use(function (err, req, res, next) {

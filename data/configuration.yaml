@@ -20,3 +20,8 @@ serial:
   port: /dev/ttyS3
 advanced:
   log_directory: data/log
+availability:
+  active:
+    timeout: 5
+  passive:
+    timeout: 30
