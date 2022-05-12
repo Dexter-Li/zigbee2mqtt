@@ -256,7 +256,8 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
         }) : []
         return res.json({
             error: 'OK',
-            devices: devicesInfo
+            devices: devicesInfo,
+            timestamp: Date.now()
         })
     }
 
@@ -269,7 +270,11 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
                 if (!device || device.constructor.name.toLowerCase() !== 'device') {
                     throw new Error(`Device '${req.params.id}' does not exist`);
                 }
-                await device.zh.removeFromNetwork()
+                try {
+                    await device.zh.removeFromNetwork()
+                } catch (e) {
+                    await device.zh.removeFromDatabase()
+                }
                 settings.removeDevice(device.ID)
                 controller.state.remove(device.ID)
                 const id = device.ID
@@ -294,6 +299,10 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
 
     async function pingDevice(req, res) {
         const device = controller?.zigbee.resolveEntity(req.params.id);
+        var activeTimeout = settings.get()?.availability?.active?.timeout
+        if (activeTimeout === undefined) {
+            activeTimeout = 5
+        }
         if (!device || device.constructor.name.toLowerCase() !== 'device') {
             res.status(404)
             return res.json({
@@ -306,11 +315,11 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
                 await device.zh.ping()
             }
         } catch (e) {
-            logger.error(`Failed to ping '${device.name}', error message: ${e.message}`)
+            logger.warn(`Failed to ping '${device.name}', error message: ${e.message}`)
         }
         return res.json({
             error: 'OK',
-            lastSeen: device.zh.lastSeen
+            online: Date.now() - device.zh.lastSeen <= activeTimeout * 60000
         })
     }
 
