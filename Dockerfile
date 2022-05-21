@@ -10,11 +10,11 @@ RUN apk add -X http://mirrors.aliyun.com/alpine/v3.12/main -X http://mirrors.ali
 
 COPY package.json npm-shrinkwrap.json tsconfig.json index.js ./
 COPY lib ./lib
-
-RUN npm ci --no-audit --no-optional --no-update-notifier && \
+RUN npm config set regitstry https://registry.npmmirror.com
+RUN npm install --no-audit --no-optional --no-update-notifier && \
     npm run build && \
     rm -rf node_modules && \
-    npm ci --production --no-audit --no-optional --no-update-notifier && \
+    npm install --production --no-audit --no-optional --no-update-notifier && \
     apk del .buildtools
 
 # Release
