@@ -8,6 +8,7 @@ const path = require('path');
 const {exec} = require('child_process');
 const rimraf = require('rimraf');
 require('source-map-support').install();
+const version = require('./package.json').version
 
 let controller;
 let logger
@@ -159,6 +160,12 @@ if (process.argv.length === 3 && process.argv[2] === 'writehash') {
     app.get('/api/z2m/log/logfile', getLogfile)
     app.get('/api/z2m/zigbee/availability', getAvailability)
     app.put('/api/z2m/zigbee/availability', setAvailability)
+    app.get('/api/z2m/version', (req, res) => {
+        return res.json({
+          error: 'OK',
+          version: version
+        })
+      })
 
     async function _connectMqttBroker() {
         try {
