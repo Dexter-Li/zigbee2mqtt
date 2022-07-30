@@ -150,7 +150,7 @@ class Controller {
                 logger.warn('Set `permit_join` to `false` once you joined all devices.');
             }
 
-            await this.zigbee.permitJoin(settings.get().permit_join);
+            await this.zigbee.permitJoin(settings.get().permit_join, undefined, settings.get().permit_join? 1800 : undefined);
         } catch (error) {
             logger.error(`Failed to set permit join to ${settings.get().permit_join}`);
         }
