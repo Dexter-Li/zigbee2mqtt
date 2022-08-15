@@ -15,6 +15,7 @@ RUN npm install --no-audit --no-optional --no-update-notifier && \
     npm run build && \
     rm -rf node_modules && \
     npm install --production --no-audit --no-optional --no-update-notifier && \
+    npm update zigbee-herdsman && \
     npm update zigbee-herdsman-converters && \
     apk del .buildtools
 
